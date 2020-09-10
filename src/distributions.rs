@@ -2,8 +2,37 @@ fn roll_distribution(num_dice: u32, num_sides: u32) -> Vec<f64> {
     return vec![];
 }
 
-fn q_factorial(k: u64, q: u64) -> u64 {
-    return 0;
+/// Compute the q-analog of the factorial
+///
+/// [k]_q! = q^0 * (q^0 + q^1) * ... * (q^0 + ... + q^{k-1})
+///
+/// Equal to the standard factorial for q=1.
+///
+/// # Reference
+///
+/// [Wolfram MathWorld](https://mathworld.wolfram.com/q-Factorial.html)
+///
+pub fn q_factorial(k: u64, q: u64) -> u64 {
+    return recursive_q_factorial(k, q, 1, 1, 1, 1);
+}
+
+fn recursive_q_factorial(
+    k: u64,
+    q: u64,
+    i: u64,
+    mut running_exp: u64,
+    mut running_product: u64,
+    mut running_sum: u64,
+) -> u64 {
+    if i < k {
+        running_exp *= q; // Compute q^i
+        running_sum += running_exp; // Compute 1 + q + q^2 + ... + q^i
+        running_product *= running_sum; // Compute (1 + q) * (1 + q + q^2) * ...
+        return recursive_q_factorial(k, q, i + 1, running_exp, running_product, running_sum);
+    } else {
+        // Stop if i = k-1
+        return running_product;
+    }
 }
 
 #[cfg(test)]
