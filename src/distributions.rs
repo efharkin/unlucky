@@ -2,6 +2,46 @@ fn roll_distribution(num_dice: u32, num_sides: u32) -> Vec<f64> {
     return vec![];
 }
 
+/// q-analog of the binomial coefficient
+///
+/// # Reference
+///
+/// [Wolfram MathWorld](https://mathworld.wolfram.com/q-BinomialCoefficient.html)
+pub fn q_binomial(n: u64, k: u64, q: u64) -> u64 {
+    assert!(n >= k, "q-binomial coefficient is undefined for k > n, got {} and {}", k, n);
+    return q_factorial(n, q) / (q_factorial(k, q) * q_factorial(n - k, q));
+}
+
+#[cfg(test)]
+mod q_binomial_coefficient_tests {
+    use super::*;
+
+    static Q_TEST_VALUES: [u64; 4] = [1, 2, 8, 20];
+    static N_TEST_VALUES: [u64; 3] = [2, 4, 6];
+
+    /// Test that the q-binomial coefficients for k=1 and k=n-1 are equal.
+    #[test]
+    fn k_symmetry() {
+        for q in Q_TEST_VALUES.iter() {
+            for n in N_TEST_VALUES.iter() {
+                let k_eq_1 = q_binomial(*n, 1, *q);
+                let k_eq_n_minus_1 = q_binomial(*n, *n - 1, *q);
+                assert_eq!(k_eq_1, k_eq_n_minus_1);
+            }
+        }
+
+    }
+
+    #[test]
+    fn four_choose_two_q() {
+        for q in Q_TEST_VALUES.iter() {
+            let expected_result = 1 + *q + 2 * q.pow(2) + q.pow(3) + q.pow(4);
+            let result = q_binomial(4, 2, *q);
+            assert_eq!(expected_result, result, "Expected {} for 4 choose 2, q={}, got {}", expected_result, *q, result);
+        }
+    }
+}
+
 /// Compute the q-analog of the factorial
 ///
 /// [k]_q! = q^0 * (q^0 + q^1) * ... * (q^0 + ... + q^{k-1})
@@ -40,6 +80,18 @@ mod factorial_tests {
     use super::*;
 
     static Q_TEST_VALUES: [u64; 4] = [1, 2, 8, 50];
+
+    #[test]
+    fn k_equal_0() {
+        for q in Q_TEST_VALUES.iter() {
+            let result = q_factorial(0, *q);
+            assert_eq!(
+                result, 1,
+                "Expected q-factorial = 1 for k=0, q={}, got {} instead",
+                *q, result
+            );
+        }
+    }
 
     #[test]
     fn k_equal_1() {
