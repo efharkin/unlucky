@@ -1,3 +1,5 @@
+use num_bigint::{BigUint};
+
 fn roll_distribution(num_dice: u32, num_sides: u32) -> Vec<f64> {
     return vec![];
 }
@@ -7,7 +9,7 @@ fn roll_distribution(num_dice: u32, num_sides: u32) -> Vec<f64> {
 /// # Reference
 ///
 /// [Wolfram MathWorld](https://mathworld.wolfram.com/q-BinomialCoefficient.html)
-pub fn q_binomial(n: u64, k: u64, q: u64) -> u64 {
+pub fn q_binomial(n: u64, k: u64, q: u64) -> BigUint {
     assert!(n >= k, "q-binomial coefficient is undefined for k > n, got {} and {}", k, n);
     return q_factorial(n, q) / (q_factorial(k, q) * q_factorial(n - k, q));
 }
@@ -16,8 +18,8 @@ pub fn q_binomial(n: u64, k: u64, q: u64) -> u64 {
 mod q_binomial_coefficient_tests {
     use super::*;
 
-    static Q_TEST_VALUES: [u64; 4] = [1, 2, 8, 20];
-    static N_TEST_VALUES: [u64; 3] = [2, 4, 6];
+    static Q_TEST_VALUES: [u64; 5] = [1, 2, 8, 20, 30];
+    static N_TEST_VALUES: [u64; 4] = [2, 4, 6, 8];
 
     /// Test that the q-binomial coefficients for k=1 and k=n-1 are equal.
     #[test]
@@ -37,7 +39,7 @@ mod q_binomial_coefficient_tests {
         for q in Q_TEST_VALUES.iter() {
             let expected_result = 1 + *q + 2 * q.pow(2) + q.pow(3) + q.pow(4);
             let result = q_binomial(4, 2, *q);
-            assert_eq!(expected_result, result, "Expected {} for 4 choose 2, q={}, got {}", expected_result, *q, result);
+            assert_eq!(BigUint::from(expected_result), result, "Expected {} for 4 choose 2, q={}, got {}", expected_result, *q, result);
         }
     }
 }
@@ -52,26 +54,30 @@ mod q_binomial_coefficient_tests {
 ///
 /// [Wolfram MathWorld](https://mathworld.wolfram.com/q-Factorial.html)
 ///
-pub fn q_factorial(k: u64, q: u64) -> u64 {
-    return recursive_q_factorial(k, q, 1, 1, 1, 1);
+pub fn q_factorial(k: u64, q: u64) -> BigUint {
+    let mut running_exp = BigUint::from(1u32);
+    let mut running_product = BigUint::from(1u32);
+    let mut running_sum = BigUint::from(1u32);
+
+    return recursive_q_factorial(k, q, 1, &mut running_exp, &mut running_product, &mut running_sum);
 }
 
 fn recursive_q_factorial(
     k: u64,
     q: u64,
     i: u64,
-    mut running_exp: u64,
-    mut running_product: u64,
-    mut running_sum: u64,
-) -> u64 {
+    running_exp: &mut BigUint,
+    running_product: &mut BigUint,
+    running_sum: &mut BigUint,
+) -> BigUint {
     if i < k {
-        running_exp *= q; // Compute q^i
-        running_sum += running_exp; // Compute 1 + q + q^2 + ... + q^i
-        running_product *= running_sum; // Compute (1 + q) * (1 + q + q^2) * ...
+        *running_exp *= q; // Compute q^i
+        *running_sum += &*running_exp; // Compute 1 + q + q^2 + ... + q^i
+        *running_product *= &*running_sum; // Compute (1 + q) * (1 + q + q^2) * ...
         return recursive_q_factorial(k, q, i + 1, running_exp, running_product, running_sum);
     } else {
         // Stop if i = k-1
-        return running_product;
+        return running_product.clone();
     }
 }
 
@@ -86,7 +92,7 @@ mod factorial_tests {
         for q in Q_TEST_VALUES.iter() {
             let result = q_factorial(0, *q);
             assert_eq!(
-                result, 1,
+                result, BigUint::from(1u32),
                 "Expected q-factorial = 1 for k=0, q={}, got {} instead",
                 *q, result
             );
@@ -98,7 +104,7 @@ mod factorial_tests {
         for q in Q_TEST_VALUES.iter() {
             let result = q_factorial(1, *q);
             assert_eq!(
-                result, 1,
+                result, BigUint::from(1u32),
                 "Expected q-factorial = 1 for k=1, q={}, got {} instead",
                 *q, result
             );
@@ -111,7 +117,7 @@ mod factorial_tests {
             let result = q_factorial(2, *q);
             assert_eq!(
                 result,
-                1 + *q,
+                BigUint::from(1 + *q),
                 "Expected q-factorial = {} for k=2, q={}, got {} instead",
                 1 + *q,
                 *q,
@@ -126,7 +132,7 @@ mod factorial_tests {
             let expected_result = (1 + *q) * (1 + *q + q.pow(2)) * (1 + *q + q.pow(2) + q.pow(3));
             let result = q_factorial(4, *q);
             assert_eq!(
-                result, expected_result,
+                result, BigUint::from(expected_result),
                 "Expected q-factorial = {} for k=4, q={}, got {} instead",
                 expected_result, *q, result
             );
