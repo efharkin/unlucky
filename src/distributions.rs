@@ -2,12 +2,105 @@ fn roll_distribution(num_dice: u32, num_sides: u32) -> Vec<f64> {
     return vec![];
 }
 
+fn pmf_convolve<'a>(a: &'a ProbabilityMassFunction, b: &'a ProbabilityMassFunction) -> ProbabilityMassFunction {
+    let shorter: &ProbabilityMassFunction;
+    let longer: &ProbabilityMassFunction;
+    if a.len() <= b.len() {
+        shorter = a;
+        longer = b;
+    } else {
+        shorter = b;
+        longer = a;
+    }
+
+    let mut result = ProbabilityMassFunction::with_capacity(longer.len() + shorter.len() - 1);
+    for result_ind in 0..(longer.len() + shorter.len() - 1) {
+        let mut convolved_value = 0u64;
+        let mut convolved_value_unset = true;
+        let mut convolved_proba = 0.0f64;
+        for (shorter_ind, shorter_x) in shorter.iter().enumerate() {
+            if shorter_ind > result_ind {
+                // Prevent convolution from going past the left side.
+                break;
+            } else {
+                let longer_ind = result_ind - shorter_ind;
+                if longer_ind >= longer.len() {
+                    // Prevent convolution from going past the right side.
+                    continue;
+                } else {
+                    // Valid convolution.
+
+                    if convolved_value_unset {
+                        convolved_value = longer.values[longer_ind] + shorter_x.0;
+                        convolved_value_unset = false;
+                    }
+                    convolved_proba += longer.probabilities[longer_ind] * shorter_x.1;
+                }
+            }
+        }
+
+        assert!(!convolved_value_unset);
+        result.push(convolved_value, convolved_proba);
+    }
+
+    return result;
+}
+
+#[cfg(test)]
+mod convolution_tests {
+    use super::*;
+
+    #[test]
+    fn coin_flip() {
+        let mut coin = ProbabilityMassFunction::with_capacity(2);
+        coin.push(1, 0.5);
+        coin.push(2, 0.5);
+
+        let mut expected_pmf = ProbabilityMassFunction::with_capacity(3);
+        expected_pmf.push(2, 0.25);
+        expected_pmf.push(3, 0.50);
+        expected_pmf.push(4, 0.25);
+
+        let convolved_pmf = pmf_convolve(&coin, &coin);
+
+        for (expected, actual) in expected_pmf.iter().zip(convolved_pmf.iter()) {
+            assert_eq!(expected.0, actual.0);
+            assert_eq!(expected.1, actual.1);
+        }
+    }
+
+    #[test]
+    fn two_d_four() {
+        let mut d4 = ProbabilityMassFunction::with_capacity(4);
+        for i in 1..5 {
+            d4.push(i, 0.25);
+        }
+
+        let mut expected_pmf = ProbabilityMassFunction::with_capacity(7);
+        {
+            let expected_probabilities = [1.0/16.0, 1.0/8.0, 3.0/16.0, 1.0/4.0, 3.0/16.0, 1.0/8.0, 1.0/16.0];
+            for i in 0..6 {
+                expected_pmf.push((i as u64) + 2, expected_probabilities[i]);
+            }
+        }
+
+        let convolved_pmf = pmf_convolve(&d4, &d4);
+
+        for (expected, actual) in expected_pmf.iter().zip(convolved_pmf.iter()) {
+            assert_eq!(expected.0, actual.0);
+            assert_eq!(expected.1, actual.1);
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ProbabilityMassFunction {
     pub values: Vec<u64>,
     pub probabilities: Vec<f64>,
 }
 
+// TODO impl construction from dnd dice and make ctor-related methods
+// (push and with_capacity) private.
 impl ProbabilityMassFunction {
     pub fn with_capacity(capacity: usize) -> ProbabilityMassFunction {
         ProbabilityMassFunction {
@@ -21,7 +114,7 @@ impl ProbabilityMassFunction {
         self.probabilities.push(probability);
     }
 
-    pub fn iter<'a>(&'a self) -> impl Iterator + 'a {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = (u64, f64)> + 'a {
         ProbabilityMassFunctionIterator::new(&self)
     }
 
