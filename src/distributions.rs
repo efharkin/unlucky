@@ -14,9 +14,8 @@ fn pmf_convolve<'a>(a: &'a ProbabilityMassFunction, b: &'a ProbabilityMassFuncti
     }
 
     let mut result = ProbabilityMassFunction::with_capacity(longer.len() + shorter.len() - 1);
+    result.bottom_value = shorter.bottom_value + longer.bottom_value;
     for result_ind in 0..(longer.len() + shorter.len() - 1) {
-        let mut convolved_value = 0u64;
-        let mut convolved_value_unset = true;
         let mut convolved_proba = 0.0f64;
         for (shorter_ind, shorter_x) in shorter.iter().enumerate() {
             if shorter_ind > result_ind {
@@ -29,18 +28,12 @@ fn pmf_convolve<'a>(a: &'a ProbabilityMassFunction, b: &'a ProbabilityMassFuncti
                     continue;
                 } else {
                     // Valid convolution.
-
-                    if convolved_value_unset {
-                        convolved_value = longer.values[longer_ind] + shorter_x.0;
-                        convolved_value_unset = false;
-                    }
                     convolved_proba += longer.probabilities[longer_ind] * shorter_x.1;
                 }
             }
         }
 
-        assert!(!convolved_value_unset);
-        result.push(convolved_value, convolved_proba);
+        result.push(convolved_proba);
     }
 
     return result;
@@ -53,13 +46,14 @@ mod convolution_tests {
     #[test]
     fn coin_flip() {
         let mut coin = ProbabilityMassFunction::with_capacity(2);
-        coin.push(1, 0.5);
-        coin.push(2, 0.5);
+        coin.push(0.5);
+        coin.push(0.5);
 
         let mut expected_pmf = ProbabilityMassFunction::with_capacity(3);
-        expected_pmf.push(2, 0.25);
-        expected_pmf.push(3, 0.50);
-        expected_pmf.push(4, 0.25);
+        expected_pmf.bottom_value = 2;
+        expected_pmf.push(0.25);
+        expected_pmf.push(0.50);
+        expected_pmf.push(0.25);
 
         let convolved_pmf = pmf_convolve(&coin, &coin);
 
@@ -73,14 +67,15 @@ mod convolution_tests {
     fn two_d_four() {
         let mut d4 = ProbabilityMassFunction::with_capacity(4);
         for i in 1..5 {
-            d4.push(i, 0.25);
+            d4.push(0.25);
         }
 
         let mut expected_pmf = ProbabilityMassFunction::with_capacity(7);
+        expected_pmf.bottom_value = 2;
         {
             let expected_probabilities = [1.0/16.0, 1.0/8.0, 3.0/16.0, 1.0/4.0, 3.0/16.0, 1.0/8.0, 1.0/16.0];
             for i in 0..6 {
-                expected_pmf.push((i as u64) + 2, expected_probabilities[i]);
+                expected_pmf.push(expected_probabilities[i]);
             }
         }
 
@@ -95,22 +90,21 @@ mod convolution_tests {
 
 #[derive(Clone)]
 pub struct ProbabilityMassFunction {
-    pub values: Vec<u64>,
-    pub probabilities: Vec<f64>,
+    bottom_value: u64,
+    probabilities: Vec<f64>,
 }
 
 // TODO impl construction from dnd dice and make ctor-related methods
 // (push and with_capacity) private.
 impl ProbabilityMassFunction {
-    pub fn with_capacity(capacity: usize) -> ProbabilityMassFunction {
+    fn with_capacity(capacity: usize) -> ProbabilityMassFunction {
         ProbabilityMassFunction {
-            values: Vec::<u64>::with_capacity(capacity),
+            bottom_value: 1,
             probabilities: Vec::<f64>::with_capacity(capacity),
         }
     }
 
-    pub fn push(&mut self, value: u64, probability: f64) {
-        self.values.push(value);
+    fn push(&mut self, probability: f64) {
         self.probabilities.push(probability);
     }
 
@@ -119,8 +113,7 @@ impl ProbabilityMassFunction {
     }
 
     pub fn len(&self) -> usize {
-        assert_eq!(self.values.len(), self.probabilities.len());
-        self.values.len()
+        self.probabilities.len()
     }
 }
 
@@ -148,7 +141,7 @@ impl <'a> Iterator for ProbabilityMassFunctionIterator<'a> {
         if self.ptr < self.pmf.len() {
             let ptr = self.ptr;
             self.ptr += 1;
-            return Some((self.pmf.values[ptr], self.pmf.probabilities[ptr]));
+            return Some((self.pmf.bottom_value + (ptr as u64), self.pmf.probabilities[ptr]));
         } else {
             return None;
         }
