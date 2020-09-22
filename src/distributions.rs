@@ -86,6 +86,34 @@ mod convolution_tests {
             assert_eq!(expected.1, actual.1);
         }
     }
+
+    #[test]
+    fn d2_d4() {
+        let mut d2 = ProbabilityMassFunction::with_capacity(2);
+        for i in 0..2 {
+            d2.push(0.5);
+        }
+
+        let mut d4 = ProbabilityMassFunction::with_capacity(4);
+        for i in 0..4 {
+            d4.push(0.25);
+        }
+
+        let mut expected_pmf = ProbabilityMassFunction::with_capacity(5);
+        expected_pmf.bottom_value = 2;
+        {
+            let expected_probabilities = [1.0/8.0, 1.0/4.0, 1.0/4.0, 1.0/4.0, 1.0/8.0];
+            for proba in expected_probabilities.iter() {
+                expected_pmf.push(*proba);
+            }
+        }
+
+        let convolved_pmf = pmf_convolve(&d2, &d4);
+        for (expected, actual) in expected_pmf.iter().zip(convolved_pmf.iter()) {
+            assert_eq!(expected.0, actual.0);
+            assert_eq!(expected.1, actual.1);
+        }
+    }
 }
 
 #[derive(Clone)]
