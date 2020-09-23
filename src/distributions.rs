@@ -1,8 +1,10 @@
+use super::dice::Roll;
+
 fn roll_distribution(num_dice: u32, num_sides: u32) -> Vec<f64> {
     return vec![];
 }
 
-fn pmf_convolve<'a>(a: &'a ProbabilityMassFunction, b: &'a ProbabilityMassFunction) -> ProbabilityMassFunction {
+pub fn pmf_convolve<'a>(a: &'a ProbabilityMassFunction, b: &'a ProbabilityMassFunction) -> ProbabilityMassFunction {
     let shorter: &ProbabilityMassFunction;
     let longer: &ProbabilityMassFunction;
     if a.len() <= b.len() {
@@ -125,6 +127,15 @@ pub struct ProbabilityMassFunction {
 // TODO impl construction from dnd dice and make ctor-related methods
 // (push and with_capacity) private.
 impl ProbabilityMassFunction {
+    pub fn from_d(num_sides: u32) -> Self {
+        let mut pmf = ProbabilityMassFunction::with_capacity(num_sides as usize);
+        for _ in 0..num_sides {
+            pmf.push(1.0/(num_sides as f64));
+        }
+        return pmf;
+    }
+
+    /// Get a new `ProbabilityMassFunction` with capacity for a given number of distinct values.
     fn with_capacity(capacity: usize) -> ProbabilityMassFunction {
         ProbabilityMassFunction {
             bottom_value: 1,
@@ -132,25 +143,48 @@ impl ProbabilityMassFunction {
         }
     }
 
+    /// Set the probability of the next value.
+    ///
+    /// Sets the probability of value `bottom_value + self.len()`.
     fn push(&mut self, probability: f64) {
         self.probabilities.push(probability);
     }
 
+    /// Get an iterator over the values and probabilities of the PMF.
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = (u64, f64)> + 'a {
         ProbabilityMassFunctionIterator::new(&self)
     }
 
+    /// Number of distinct values in the domain of the PMF.
     pub fn len(&self) -> usize {
         self.probabilities.len()
     }
 }
 
+/// Get the PMF for a Roll.
+impl From<&Roll> for ProbabilityMassFunction {
+    fn from(roll: &Roll) -> ProbabilityMassFunction {
+        let mut roll_iter = roll.iter();
+        let mut pmf = ProbabilityMassFunction::from_d(roll_iter.next().expect("Cannot create a PMF from a roll with no dice."));
+        pmf.bottom_value = roll.get_modifier() as u64;
+
+        for d in roll_iter {
+            let d_pmf = ProbabilityMassFunction::from_d(d);
+            pmf = pmf_convolve(&pmf, &d_pmf);
+        }
+
+        return pmf;
+    }
+}
+
+/// Iterator over the values and probabilities of a PMF.
 struct ProbabilityMassFunctionIterator<'a> {
     pmf: &'a ProbabilityMassFunction,
     ptr: usize,
 }
 
 impl<'a> ProbabilityMassFunctionIterator<'a> {
+    /// Get a new `ProbabilityMassFunctionIterator`.
     pub fn new(pmf: &'a ProbabilityMassFunction) -> Self {
         ProbabilityMassFunctionIterator {
             pmf: pmf,
@@ -165,6 +199,7 @@ impl<'a> ProbabilityMassFunctionIterator<'a> {
 impl <'a> Iterator for ProbabilityMassFunctionIterator<'a> {
     type Item = (u64, f64);
 
+    /// Get the next (value, probability) pair in the PMF.
     fn next(&mut self) -> Option<Self::Item> {
         if self.ptr < self.pmf.len() {
             let ptr = self.ptr;
