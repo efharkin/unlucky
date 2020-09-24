@@ -1,3 +1,57 @@
+pub fn parse_roll_string(roll_string: String) -> Result<Roll, String> {
+    unimplemented!();
+}
+
+#[cfg(test)]
+mod roll_parse_tests {
+    use super::*;
+
+    #[test]
+    fn single_set_of_dice() {
+        let num_dice = [2, 4, 6];
+        let num_sides = [10, 4, 8];
+        for (n_dice, n_sides) in num_dice.iter().zip(num_sides.iter()) {
+            let actual = parse_roll_string(format!("{}d{}", *n_dice, *n_sides)).expect("Roll parsing failed unexpectedly.");
+            assert_eq!(actual.num_dice[0], *n_dice);
+            assert_eq!(actual.num_sides[0], *n_sides);
+        }
+    }
+
+    #[test]
+    fn multiple_sets_without_spaces() {
+        let actual = parse_roll_string("2d6+1d4".to_string()).expect("Roll parsing failed unexpectedly.");
+        assert_eq!(actual.num_dice[0], 2);
+        assert_eq!(actual.num_dice[1], 1);
+        assert_eq!(actual.num_sides[0], 6);
+        assert_eq!(actual.num_sides[1], 4);
+    }
+
+    #[test]
+    fn multiple_sets_with_spaces() {
+        let actual = parse_roll_string("2d6 + 1d4".to_string()).expect("Roll parsing failed unexpectedly.");
+        assert_eq!(actual.num_dice[0], 2);
+        assert_eq!(actual.num_dice[1], 1);
+        assert_eq!(actual.num_sides[0], 6);
+        assert_eq!(actual.num_sides[1], 4);
+    }
+
+    /// Test whether roll20 `/roll` command prefix is ignored
+    #[test]
+    fn leading_long_command_is_ignored() {
+        let actual = parse_roll_string("/roll 1d4".to_string()).expect("Roll parsing failed unexpectedly.");
+        assert_eq!(actual.num_dice[0], 1);
+        assert_eq!(actual.num_sides[0], 4);
+    }
+
+    /// Test whether roll20 `/roll` command prefix is ignored
+    #[test]
+    fn leading_short_command_is_ignored() {
+        let actual = parse_roll_string("/r 1d4".to_string()).expect("Roll parsing failed unexpectedly.");
+        assert_eq!(actual.num_dice[0], 1);
+        assert_eq!(actual.num_sides[0], 4);
+    }
+}
+
 /// A set of dice being rolled.
 pub struct Roll {
     num_dice: Vec<u32>,
