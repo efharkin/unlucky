@@ -2,6 +2,38 @@ pub fn parse_roll_string(roll_string: String) -> Result<Roll, String> {
     unimplemented!();
 }
 
+fn strip_roll_prefix<'s>(string: &'s str) -> &'s str {
+    let stripped_slice: &str;
+    match string.strip_prefix(r"/roll") {
+        Some(slice) => stripped_slice = slice,
+        None => {
+            match string.strip_prefix(r"/r") {
+                Some(slice) => stripped_slice = slice,
+                None => {stripped_slice = string}
+            }
+        },
+    }
+    return stripped_slice.trim();
+}
+
+/// Split off the first modifier or set of dice from a roll string
+///
+/// # Example
+///
+/// Given a roll string such as "2d4+7d6+8+1d10", this returns a pair of string slices.
+/// The first slice contains "2d4" and the second slice contains the rest of the
+/// roll string.
+fn split_off_first_roll_item<'s>(roll_string: &'s str) -> (&'s str, &'s str) {
+    assert!(roll_string.len() != 0, "Attempted to pop roll item off an empty string.");
+    assert!(!roll_string.chars().next().unwrap().is_whitespace(), "Roll item string cannot start with whitespace.");
+
+    let first_digit_ind: usize = roll_string.find(|c: char| c.is_digit(10)).expect("Roll string contains no digits.");
+    match roll_string[first_digit_ind..roll_string.len()].find(|c: char| (c == '-') | (c == '+')) {
+        Some(pos) => roll_string.split_at(first_digit_ind + pos),
+        None => roll_string.split_at(roll_string.len())
+    }
+}
+
 #[cfg(test)]
 mod roll_parse_tests {
     use super::*;
@@ -35,20 +67,52 @@ mod roll_parse_tests {
         assert_eq!(actual.num_sides[1], 4);
     }
 
-    /// Test whether roll20 `/roll` command prefix is ignored
+    /// Test whether roll20 `/roll` command prefix is removed properly
     #[test]
-    fn leading_long_command_is_ignored() {
-        let actual = parse_roll_string("/roll 1d4".to_string()).expect("Roll parsing failed unexpectedly.");
-        assert_eq!(actual.num_dice[0], 1);
-        assert_eq!(actual.num_sides[0], 4);
+    fn strip_long_roll_prefix() {
+        let roll_string = "/roll 1d4";
+        let actual = strip_roll_prefix(roll_string);
+        assert_eq!(actual, "1d4");
     }
 
-    /// Test whether roll20 `/roll` command prefix is ignored
+    /// Test whether roll20 `/roll` command prefix is removed properly
     #[test]
-    fn leading_short_command_is_ignored() {
-        let actual = parse_roll_string("/r 1d4".to_string()).expect("Roll parsing failed unexpectedly.");
-        assert_eq!(actual.num_dice[0], 1);
-        assert_eq!(actual.num_sides[0], 4);
+    fn strip_short_roll_prefix() {
+        let roll_string = "/r 1d4";
+        let actual = strip_roll_prefix(roll_string);
+        assert_eq!(actual, "1d4");
+    }
+
+    #[test]
+    fn split_off_roll_item_leading_operator_no_spaces() {
+        let roll_string = "+1d29-3+3d2";
+        let (item, trailing) = split_off_first_roll_item(&roll_string);
+        assert_eq!(item, "+1d29", "Splitting failed at first item (item part of result)");
+        assert_eq!(trailing, "-3+3d2", "Splitting failed at first item (trailing part of result)");
+
+        let (next_item, next_trailing) = split_off_first_roll_item(trailing);
+        assert_eq!(next_item, "-3", "Splitting failed at second item (item part of result)");
+        assert_eq!(next_trailing, "+3d2", "Splitting trailed at second item (trailing part of result)");
+
+        let (final_item, final_trailing) = split_off_first_roll_item(next_trailing);
+        assert_eq!(final_item, "+3d2", "Splitting failed at last item (item part of result)");
+        assert_eq!(final_trailing, "", "Splitting failed at last item (trailing part of result)");
+    }
+
+    #[test]
+    fn split_off_roll_item_with_spaces() {
+        let roll_string = "1d29 - 3 + 3 d 2";
+        let (item, trailing) = split_off_first_roll_item(&roll_string);
+        assert_eq!(item, "1d29 ", "Splitting failed at first item (item part of result)");
+        assert_eq!(trailing, "- 3 + 3 d 2", "Splitting failed at first item (trailing part of result)");
+
+        let (next_item, next_trailing) = split_off_first_roll_item(trailing);
+        assert_eq!(next_item, "- 3 ", "Splitting failed at second item (item part of result)");
+        assert_eq!(next_trailing, "+ 3 d 2", "Splitting trailed at second item (trailing part of result)");
+
+        let (final_item, final_trailing) = split_off_first_roll_item(next_trailing);
+        assert_eq!(final_item, "+ 3 d 2", "Splitting failed at last item (item part of result)");
+        assert_eq!(final_trailing, "", "Splitting failed at last item (trailing part of result)");
     }
 }
 
